@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>칭찬카드</title>
+<link rel="stylesheet" href="pastel.css">
+</head>
+<body>
+<header><a href="index.html">도구함</a><h1>칭찬카드</h1></header>
+<main>
+  <div class="praise-toolbar row">
+    <p class="hint">번호를 눌러 캐릭터를 고르고, + / - 로 상벌점을 기록해요.</p>
+    <button id="resetAll" type="button">전체 초기화</button>
+  </div>
+  <div id="praiseGrid" class="praise-grid" aria-live="polite"></div>
+  <p class="credit">캐릭터 그림: Twemoji (CC-BY 4.0)</p>
+</main>
+
+<div class="modal" id="charModal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="charHead">
+    <h2 id="charHead">캐릭터 고르기</h2>
+    <p id="charWho" style="margin:0;color:#8a9aa0;font-weight:700"></p>
+    <div id="charChoices" class="char-grid"></div>
+    <div class="row modal-actions">
+      <button id="closeChar" type="button">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const KEY = 'class-tools-praise-v1';
+const MAX = 999;
+const CHARS = [
+  { k: 'bee', n: '꿀벌' },
+  { k: 'cat', n: '고양이' },
+  { k: 'dog', n: '강아지' },
+  { k: 'rabbit', n: '토끼' },
+  { k: 'fox', n: '여우' },
+  { k: 'panda', n: '판다' },
+  { k: 'frog', n: '개구리' },
+  { k: 'monkey', n: '원숭이' },
+  { k: 'tiger', n: '호랑이' },
+  { k: 'unicorn', n: '유니콘' },
+  { k: 'penguin', n: '펭귄' },
+  { k: 'koala', n: '코알라' },
+  { k: 'owl', n: '부엉이' },
+  { k: 'turtle', n: '거북이' },
+  { k: 'octopus', n: '문어' },
+  { k: 'butterfly', n: '나비' }
+];
+const LEVELS = [
+  { min: 0, name: '새싹' },
+  { min: 10, name: '별빛' },
+  { min: 25, name: '무지개' },
+  { min: 50, name: '왕관' },
+  { min: 100, name: '반짝반짝' }
+];
+
+let data = load();
+let pickIndex = 0;
+
+function clamp(n) {
+  n = Math.round(Number(n));
+  return Number.isFinite(n) ? Math.max(0, Math.min(MAX, n)) : 0;
+}
+
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY));
+    if (Array.isArray(raw) && raw.length === 30) {
+      return raw.map((x, i) => ({
+        p: clamp(x && x.p),
+        c: (x && CHARS.some(c => c.k === x.c)) ? x.c : CHARS[i % CHARS.length].k
+      }));
+    }
+  } catch (e) {}
+  return Array.from({ length: 30 }, (_, i) => ({ p: 0, c: CHARS[i % CHARS.length].k }));
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+}
+
+function levelInfo(p) {
+  let idx = 0;
+  LEVELS.forEach((l, i) => { if (p >= l.min) idx = i; });
+  return { idx, name: LEVELS[idx].name, min: LEVELS[idx].min, next: LEVELS[idx + 1] || null };
+}
+
+function progress(p) {
+  const lv = levelInfo(p);
+  if (!lv.next) return 100;
+  return Math.max(0, Math.min(100, ((p - lv.min) / (lv.next.min - lv.min)) * 100));
+}
+
+function render() {
+  const grid = $('#praiseGrid');
+  grid.innerHTML = '';
+  data.forEach((d, i) => {
+    const lv = levelInfo(d.p);
+    const card = document.createElement('article');
+    card.className = 'pcard';
+    card.innerHTML =
+      '<div class="phead"><span class="pnum">' + (i + 1) + '번</span>' +
+      '<span class="plevel">Lv.' + (lv.idx + 1) + ' ' + lv.name + '</span></div>' +
+      '<button class="pavatar" type="button" data-level="' + (lv.idx + 1) + '" data-pick="' + i + '" aria-label="' + (i + 1) + '번 캐릭터 고르기">' +
+      '<img class="badge b-star" src="assets/badges/star.svg" alt="">' +
+      '<img class="badge b-rainbow" src="assets/badges/rainbow.svg" alt="">' +
+      '<img class="badge b-crown" src="assets/badges/crown.svg" alt="">' +
+      '<img class="badge b-sparkles" src="assets/badges/sparkles.svg" alt="">' +
+      '<img class="char" src="assets/characters/' + d.c + '.svg" alt="">' +
+      '</button>' +
+      '<div class="ppoints"><output>' + d.p + '</output><span>점</span></div>' +
+      '<div class="pbar"><i style="width:' + progress(d.p) + '%"></i></div>' +
+      '<div class="pbtns">' +
+      '<button type="button" data-i="' + i + '" data-d="-5" aria-label="' + (i + 1) + '번 5점 빼기">-5</button>' +
+      '<button type="button" data-i="' + i + '" data-d="-1" aria-label="' + (i + 1) + '번 1점 빼기">-1</button>' +
+      '<button type="button" data-i="' + i + '" data-d="1" aria-label="' + (i + 1) + '번 1점 더하기">+1</button>' +
+      '<button type="button" data-i="' + i + '" data-d="5" aria-label="' + (i + 1) + '번 5점 더하기">+5</button>' +
+      '</div>';
+    grid.append(card);
+  });
+}
+
+$('#praiseGrid').addEventListener('click', e => {
+  const pick = e.target.closest('[data-pick]');
+  if (pick) { openPicker(Number(pick.dataset.pick)); return; }
+  const btn = e.target.closest('[data-d]');
+  if (btn) {
+    const i = Number(btn.dataset.i);
+    data[i].p = clamp(data[i].p + Number(btn.dataset.d));
+    save();
+    render();
+  }
+});
+
+function openPicker(i) {
+  pickIndex = i;
+  $('#charWho').textContent = (i + 1) + '번 친구의 캐릭터를 골라 주세요.';
+  const box = $('#charChoices');
+  box.innerHTML = '';
+  CHARS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'char-choice' + (data[i].c === c.k ? ' on' : '');
+    b.innerHTML = '<img src="assets/characters/' + c.k + '.svg" alt=""><span>' + c.n + '</span>';
+    b.onclick = () => {
+      data[i].c = c.k;
+      save();
+      render();
+      closePicker();
+    };
+    box.append(b);
+  });
+  $('#charModal').hidden = false;
+  $('#closeChar').focus();
+}
+
+function closePicker() {
+  $('#charModal').hidden = true;
+}
+
+$('#closeChar').onclick = closePicker;
+$('#charModal').addEventListener('click', e => {
+  if (e.target.id === 'charModal') closePicker();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#charModal').hidden) closePicker();
+});
+
+$('#resetAll').onclick = () => {
+  if (!confirm('1번부터 30번까지 점수와 캐릭터를 모두 처음으로 돌릴까요?')) return;
+  data = Array.from({ length: 30 }, (_, i) => ({ p: 0, c: CHARS[i % CHARS.length].k }));
+  save();
+  render();
+};
+
+render();
+</script>
+</body>
+</html>

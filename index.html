@@ -11,9 +11,13 @@
 
 <header class="site-head">
   <div class="badge"><img src="assets/hive.png" alt=""></div>
-  <div>
+  <div class="site-title">
     <h1>교실 도구함</h1>
     <p>파스텔빛 우리 반 도구들</p>
+  </div>
+  <div class="head-actions">
+    <button class="admin-btn" id="adminBtn" type="button">관리자 편집</button>
+    <button id="backupBtn" type="button">백업/복원</button>
   </div>
 </header>
 
@@ -39,6 +43,11 @@
       <b>플래시 카드</b>
       <span>눌러서 뜻을 확인해요</span>
     </a>
+    <a class="card" href="praise.html">
+      <img class="icon" src="assets/badges/star.svg" alt="">
+      <b>칭찬카드</b>
+      <span>상벌점과 캐릭터를 기록해요</span>
+    </a>
     <a class="card" href="picker.html">
       <img class="icon" src="assets/spider.png" alt="">
       <b>번호 뽑기</b>
@@ -51,5 +60,368 @@
     </a>
   </div>
 </main>
+
+<div class="modal" id="adminModal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="adminHead">
+    <h2 id="adminHead">관리자 편집</h2>
+    <label class="field">사이트 제목
+      <input id="editTitle" maxlength="40">
+    </label>
+    <label class="field">소개 문구
+      <input id="editSub" maxlength="80">
+    </label>
+    <div id="editCards"></div>
+    <div class="row modal-actions">
+      <button class="main" id="saveSite" type="button">저장</button>
+      <button id="resetSite" type="button">기본값</button>
+      <button id="changePin" type="button">PIN 변경</button>
+      <button id="closeAdmin" type="button">닫기</button>
+    </div>
+    <p class="modal-hint">수정 내용은 이 브라우저에만 저장됩니다.</p>
+  </div>
+</div>
+
+<div class="modal" id="pinModal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="pinHead">
+    <h2 id="pinHead">교사 인증</h2>
+    <p id="pinMsg" class="backup-info"></p>
+    <label class="field" id="pinCurrentWrap">교사 PIN
+      <input id="pinCurrent" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12">
+    </label>
+    <label class="field" id="pinNewWrap" hidden>새 PIN
+      <input id="pinNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="12">
+    </label>
+    <label class="field" id="pinConfirmWrap" hidden>새 PIN 확인
+      <input id="pinConfirm" type="password" inputmode="numeric" autocomplete="new-password" maxlength="12">
+    </label>
+    <p id="pinError" class="pin-error" role="alert"></p>
+    <div class="row modal-actions">
+      <button class="main" id="pinSubmit" type="button">확인</button>
+      <button id="closePin" type="button">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="backupModal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="backupHead">
+    <h2 id="backupHead">백업 / 복원</h2>
+    <p class="backup-info">관리자 편집 내용, 교사 PIN 설정, 칭찬카드 점수와 캐릭터, 단어 목록, 모둠 점수를 한 파일로 저장하고 다른 컴퓨터에서 불러올 수 있어요.</p>
+    <p class="modal-hint" style="text-align:left">불러오면 이 브라우저의 기록이 백업 파일 내용으로 바뀝니다.</p>
+    <div class="row modal-actions">
+      <button class="main" id="exportBtn" type="button">백업 파일 내려받기</button>
+      <button id="importBtn" type="button">백업 파일 불러오기</button>
+      <button id="closeBackup" type="button">닫기</button>
+    </div>
+    <p id="backupStatus" class="backup-status" role="status"></p>
+    <input type="file" id="backupFile" accept="application/json,.json" hidden>
+  </div>
+</div>
+
+<script>
+(function () {
+  const KEY = 'class-tools-site-v1';
+  const titleEl = document.querySelector('.site-head h1');
+  const subEl = document.querySelector('.site-head p');
+  const cards = Array.from(document.querySelectorAll('.card'));
+  const modal = document.getElementById('adminModal');
+  const editCards = document.getElementById('editCards');
+
+  const DEFAULT = {
+    title: titleEl.textContent,
+    sub: subEl.textContent,
+    cards: cards.map(c => ({
+      t: c.querySelector('b').textContent,
+      d: c.querySelector('span').textContent
+    }))
+  };
+
+  function applySite(site) {
+    if (site.title) titleEl.textContent = site.title;
+    if (site.sub) subEl.textContent = site.sub;
+    if (Array.isArray(site.cards)) {
+      cards.forEach((c, i) => {
+        const item = site.cards[i];
+        if (!item) return;
+        if (item.t) c.querySelector('b').textContent = item.t;
+        if (item.d) c.querySelector('span').textContent = item.d;
+      });
+    }
+  }
+
+  function currentSite() {
+    return {
+      title: titleEl.textContent,
+      sub: subEl.textContent,
+      cards: cards.map(c => ({
+        t: c.querySelector('b').textContent,
+        d: c.querySelector('span').textContent
+      }))
+    };
+  }
+
+  function buildFields(site) {
+    editCards.innerHTML = '';
+    site.cards.forEach((item, i) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'edit-card';
+
+      const head = document.createElement('b');
+      head.textContent = (i + 1) + '번 카드';
+
+      const titleLabel = document.createElement('label');
+      titleLabel.className = 'field';
+      titleLabel.textContent = '제목';
+      const titleInput = document.createElement('input');
+      titleInput.value = item.t;
+      titleInput.maxLength = 30;
+      titleInput.dataset.i = i;
+      titleInput.dataset.f = 't';
+      titleLabel.append(titleInput);
+
+      const descLabel = document.createElement('label');
+      descLabel.className = 'field';
+      descLabel.textContent = '내용';
+      const descInput = document.createElement('input');
+      descInput.value = item.d;
+      descInput.maxLength = 60;
+      descInput.dataset.i = i;
+      descInput.dataset.f = 'd';
+      descLabel.append(descInput);
+
+      wrap.append(head, titleLabel, descLabel);
+      editCards.append(wrap);
+    });
+  }
+
+  function openAdmin() {
+    const site = currentSite();
+    document.getElementById('editTitle').value = site.title;
+    document.getElementById('editSub').value = site.sub;
+    buildFields(site);
+    modal.hidden = false;
+    document.getElementById('editTitle').focus();
+  }
+
+  function closeAdmin() {
+    modal.hidden = true;
+  }
+
+  function saveSite() {
+    const site = {
+      title: document.getElementById('editTitle').value.trim() || DEFAULT.title,
+      sub: document.getElementById('editSub').value.trim() || DEFAULT.sub,
+      cards: cards.map((_, i) => ({ t: DEFAULT.cards[i].t, d: DEFAULT.cards[i].d }))
+    };
+    editCards.querySelectorAll('input').forEach(input => {
+      const i = Number(input.dataset.i);
+      site.cards[i][input.dataset.f] = input.value.trim() || site.cards[i][input.dataset.f];
+    });
+    applySite(site);
+    try { localStorage.setItem(KEY, JSON.stringify(site)); } catch (e) {}
+    closeAdmin();
+  }
+
+  document.getElementById('closeAdmin').onclick = closeAdmin;
+  document.getElementById('saveSite').onclick = saveSite;
+  document.getElementById('resetSite').onclick = () => {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    applySite(DEFAULT);
+    closeAdmin();
+  };
+  modal.addEventListener('click', e => { if (e.target === modal) closeAdmin(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.hidden) closeAdmin();
+  });
+
+  const TEACHER_KEY = 'class-tools-teacher-v1';
+  const pinModal = document.getElementById('pinModal');
+  const pinMsg = document.getElementById('pinMsg');
+  const pinError = document.getElementById('pinError');
+  const pinCurrentWrap = document.getElementById('pinCurrentWrap');
+  const pinNewWrap = document.getElementById('pinNewWrap');
+  const pinConfirmWrap = document.getElementById('pinConfirmWrap');
+  const pinCurrent = document.getElementById('pinCurrent');
+  const pinNew = document.getElementById('pinNew');
+  const pinConfirm = document.getElementById('pinConfirm');
+  const pinSubmit = document.getElementById('pinSubmit');
+  let pinMode = 'verify';
+
+  function getTeacher() {
+    try { return JSON.parse(localStorage.getItem(TEACHER_KEY)); } catch (e) { return null; }
+  }
+  function toB64(bytes) {
+    return btoa(String.fromCharCode.apply(null, bytes));
+  }
+  function fromB64(s) {
+    return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  }
+  async function hashPin(pin, salt, iter) {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: fromB64(salt), iterations: iter, hash: 'SHA-256' }, key, 256);
+    return toB64(new Uint8Array(bits));
+  }
+  async function savePin(pin) {
+    const salt = new Uint8Array(16);
+    crypto.getRandomValues(salt);
+    const iter = 120000;
+    const hash = await hashPin(pin, toB64(salt), iter);
+    localStorage.setItem(TEACHER_KEY, JSON.stringify({ salt: toB64(salt), hash, iter }));
+  }
+  async function verifyPin(pin) {
+    const t = getTeacher();
+    if (!t) return false;
+    return await hashPin(pin, t.salt, t.iter) === t.hash;
+  }
+
+  function openPin(mode) {
+    pinMode = mode;
+    pinError.textContent = '';
+    pinCurrent.value = '';
+    pinNew.value = '';
+    pinConfirm.value = '';
+    const needCurrent = mode !== 'set';
+    const needNew = mode !== 'verify';
+    pinCurrentWrap.hidden = !needCurrent;
+    pinNewWrap.hidden = !needNew;
+    pinConfirmWrap.hidden = !needNew;
+    document.getElementById('pinHead').textContent = mode === 'set' ? '교사 PIN 만들기' : '교사 인증';
+    pinMsg.textContent = mode === 'set'
+      ? '처음 사용하는 교사 PIN을 만들어 주세요. 숫자 4자리 이상으로 정해 주세요.'
+      : mode === 'change'
+        ? '현재 PIN을 확인한 뒤 새 PIN으로 바꿀 수 있어요.'
+        : '관리자 편집을 열려면 교사 PIN을 입력해 주세요.';
+    pinSubmit.textContent = mode === 'set' ? '저장' : '확인';
+    pinModal.hidden = false;
+    (needCurrent ? pinCurrent : pinNew).focus();
+  }
+
+  function closePin() {
+    pinModal.hidden = true;
+  }
+
+  async function submitPin() {
+    pinError.textContent = '';
+    const current = pinCurrent.value.trim();
+    const next = pinNew.value.trim();
+    const confirm = pinConfirm.value.trim();
+    try {
+      if (pinMode !== 'set') {
+        const ok = await verifyPin(current);
+        if (!ok) {
+          pinError.textContent = 'PIN이 맞지 않아요.';
+          pinCurrent.select();
+          return;
+        }
+      }
+      if (pinMode !== 'verify') {
+        if (!/^\d{4,12}$/.test(next)) {
+          pinError.textContent = '숫자 4~12자리로 정해 주세요.';
+          pinNew.focus();
+          return;
+        }
+        if (next !== confirm) {
+          pinError.textContent = '새 PIN이 서로 달라요.';
+          pinConfirm.focus();
+          return;
+        }
+        await savePin(next);
+      }
+      closePin();
+      if (pinMode !== 'change') openAdmin();
+    } catch (e) {
+      pinError.textContent = '이 브라우저에서는 교사 인증을 사용할 수 없어요.';
+    }
+  }
+
+  pinSubmit.onclick = submitPin;
+  document.getElementById('closePin').onclick = closePin;
+  document.getElementById('changePin').onclick = () => openPin('change');
+  pinModal.addEventListener('click', e => { if (e.target === pinModal) closePin(); });
+  pinModal.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      submitPin();
+    }
+  });
+  document.getElementById('adminBtn').onclick = () => {
+    if (getTeacher()) openPin('verify');
+    else openPin('set');
+  };
+
+  const BACKUP_KEYS = [
+    'class-tools-teacher-v1',
+    'class-tools-site-v1',
+    'class-tools-praise-v1',
+    'class-tools-words',
+    'class-tools-score'
+  ];
+  const backupModal = document.getElementById('backupModal');
+  const backupFile = document.getElementById('backupFile');
+  const backupStatus = document.getElementById('backupStatus');
+
+  function closeBackup() {
+    backupModal.hidden = true;
+  }
+
+  document.getElementById('backupBtn').onclick = () => {
+    backupStatus.textContent = '';
+    backupModal.hidden = false;
+  };
+  document.getElementById('closeBackup').onclick = closeBackup;
+  backupModal.addEventListener('click', e => {
+    if (e.target === backupModal) closeBackup();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !backupModal.hidden) closeBackup();
+  });
+
+  document.getElementById('exportBtn').onclick = () => {
+    const data = {};
+    BACKUP_KEYS.forEach(k => {
+      const v = localStorage.getItem(k);
+      if (v !== null) data[k] = v;
+    });
+    const payload = { app: 'class-tools', version: 1, exportedAt: new Date().toISOString(), data };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const d = new Date();
+    const stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    a.href = url;
+    a.download = 'class-tools-backup-' + stamp + '.json';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    backupStatus.textContent = '백업 파일을 내려받았어요.';
+  };
+
+  document.getElementById('importBtn').onclick = () => backupFile.click();
+  backupFile.onchange = async () => {
+    const file = backupFile.files && backupFile.files[0];
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text());
+      if (!payload || payload.app !== 'class-tools' || !payload.data || typeof payload.data !== 'object') {
+        throw new Error('bad backup');
+      }
+      BACKUP_KEYS.forEach(k => {
+        const v = payload.data[k];
+        if (typeof v === 'string') localStorage.setItem(k, v);
+      });
+      backupStatus.textContent = '복원 완료! 페이지를 새로 고칩니다.';
+      setTimeout(() => location.reload(), 700);
+    } catch (e) {
+      backupStatus.textContent = '올바른 백업 파일이 아니에요.';
+    }
+    backupFile.value = '';
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    if (saved) applySite(saved);
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>

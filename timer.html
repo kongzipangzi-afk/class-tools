@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>타이머</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:#f6f3ea;color:#23302b}header{display:flex;align-items:center;gap:14px;padding:14px 20px;background:#23302b;color:#fff}header a{color:#fff;text-decoration:none;font-size:15px;border:1px solid #fff8;border-radius:8px;padding:6px 10px}h1{font-size:22px;margin:0}main{max-width:1000px;margin:0 auto;padding:20px}button,input,select,textarea{font:inherit}button{border:0;border-radius:10px;padding:12px 18px;background:#fff;color:#23302b;box-shadow:inset 0 0 0 2px #23302b;cursor:pointer;font-weight:700}button.main{background:#e4572e;color:#fff;box-shadow:none}button:disabled{opacity:.4;cursor:default}input,textarea{border:2px solid #23302b;border-radius:10px;padding:10px;background:#fff}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#time{font-size:min(28vw,220px);font-weight:800;text-align:center;font-variant-numeric:tabular-nums;line-height:1.2}#time.end{color:#e4572e}.bar{height:16px;background:#fff;border-radius:8px;box-shadow:inset 0 0 0 2px #23302b;overflow:hidden;margin:8px 0 20px}.bar i{display:block;height:100%;width:100%;background:#2a9d8f}.row{justify-content:center}#min{width:90px}
+</style>
+<link rel="stylesheet" href="pastel.css">
+</head>
+<body>
+<header><a href="index.html">도구함</a><h1>타이머</h1></header>
+<main>
+<div id="time" role="timer">05:00</div>
+<div class="bar"><i id="fill"></i></div>
+<div class="row"><button data-m="1">1분</button><button data-m="3">3분</button><button data-m="5">5분</button><button data-m="10">10분</button><label>직접 <input id="min" type="number" min="1" max="180" value="5"> 분</label><button id="set">맞추기</button></div>
+<p class="row"><button class="main" id="go">시작</button><button id="reset">처음으로</button><button id="full">크게 보기</button></p>
+</main>
+<script>
+const $ = i => document.getElementById(i);
+let total = 300, left = 300, endAt = 0, tick = null;
+function show() {
+  const s = Math.max(0, Math.ceil(left));
+  $('time').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  $('fill').style.width = (total ? left / total * 100 : 0) + '%';
+  $('time').classList.toggle('end', s === 0);
+}
+function stop() { clearInterval(tick); tick = null; $('go').textContent = '시작'; }
+function setMinutes(m) { stop(); total = left = Math.max(1, Math.min(180, m || 1)) * 60; show(); }
+function beep() {
+  try {
+    const a = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .4, .8].forEach(t => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(a.destination); g.gain.value = .25;
+      o.start(a.currentTime + t); o.stop(a.currentTime + t + .25);
+    });
+  } catch (e) {}
+}
+function run() {
+  left = (endAt - Date.now()) / 1000;
+  if (left <= 0) { left = 0; stop(); beep(); }
+  show();
+}
+$('go').onclick = () => {
+  if (tick) { stop(); return; }
+  if (left <= 0) left = total;
+  endAt = Date.now() + left * 1000;
+  tick = setInterval(run, 200);
+  $('go').textContent = '잠깐 멈춤';
+};
+$('reset').onclick = () => { stop(); left = total; show(); };
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => setMinutes(+b.dataset.m));
+$('set').onclick = () => setMinutes(+$('min').value);
+$('full').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+};
+show();
+</script>
+</body>
+</html>

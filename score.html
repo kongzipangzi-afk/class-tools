@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>모둠 점수판</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:#f6f3ea;color:#23302b}header{display:flex;align-items:center;gap:14px;padding:14px 20px;background:#23302b;color:#fff}header a{color:#fff;text-decoration:none;font-size:15px;border:1px solid #fff8;border-radius:8px;padding:6px 10px}h1{font-size:22px;margin:0}main{max-width:1000px;margin:0 auto;padding:20px}button,input,select,textarea{font:inherit}button{border:0;border-radius:10px;padding:12px 18px;background:#fff;color:#23302b;box-shadow:inset 0 0 0 2px #23302b;cursor:pointer;font-weight:700}button.main{background:#e4572e;color:#fff;box-shadow:none}button:disabled{opacity:.4;cursor:default}input,textarea{border:2px solid #23302b;border-radius:10px;padding:10px;background:#fff}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:18px}.t{background:#fff;border-radius:16px;padding:18px;text-align:center;box-shadow:inset 0 0 0 2px #23302b}.t h2{margin:0;font-size:24px}.t output{display:block;font-size:80px;font-weight:800;font-variant-numeric:tabular-nums}.t.top{background:#ffd166}.t .row{justify-content:center}#c{width:80px}
+</style>
+<link rel="stylesheet" href="pastel.css">
+</head>
+<body>
+<header><a href="index.html">도구함</a><h1>모둠 점수판</h1></header>
+<main>
+<div class="row"><label>모둠 수 <input id="c" type="number" min="2" max="12" value="6"></label><button id="zero">점수 지우기</button></div>
+<div id="teams"></div>
+</main>
+<script>
+const $ = i => document.getElementById(i), KEY = 'class-tools-score';
+let s = [0, 0, 0, 0, 0, 0];
+try { const o = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(o) && o.length >= 2) s = o.map(Number); } catch (e) {}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+function render() {
+  $('c').value = s.length;
+  const top = Math.max(...s);
+  $('teams').innerHTML = '';
+  s.forEach((v, i) => {
+    const d = document.createElement('div'); d.className = 't' + (v > 0 && v === top ? ' top' : '');
+    const h = document.createElement('h2'); h.textContent = (i + 1) + '모둠';
+    const o = document.createElement('output'); o.textContent = v;
+    const r = document.createElement('div'); r.className = 'row';
+    [['-1', -1], ['+1', 1], ['+5', 5]].forEach(([l, n]) => {
+      const b = document.createElement('button'); b.textContent = l;
+      b.setAttribute('aria-label', (i + 1) + '모둠 ' + l);
+      b.onclick = () => { s[i] = Math.max(0, s[i] + n); save(); render(); };
+      r.append(b);
+    });
+    d.append(h, o, r); $('teams').append(d);
+  });
+}
+$('c').onchange = () => {
+  const c = Math.max(2, Math.min(12, +$('c').value || 2));
+  s = Array.from({ length: c }, (_, i) => s[i] || 0); save(); render();
+};
+$('zero').onclick = () => { s = s.map(() => 0); save(); render(); };
+render();
+</script>
+</body>
+</html>

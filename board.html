@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>칠판</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:#f6f3ea;color:#23302b}header{display:flex;align-items:center;gap:14px;padding:14px 20px;background:#23302b;color:#fff}header a{color:#fff;text-decoration:none;font-size:15px;border:1px solid #fff8;border-radius:8px;padding:6px 10px}h1{font-size:22px;margin:0}main{max-width:1000px;margin:0 auto;padding:20px}button,input,select,textarea{font:inherit}button{border:0;border-radius:10px;padding:12px 18px;background:#fff;color:#23302b;box-shadow:inset 0 0 0 2px #23302b;cursor:pointer;font-weight:700}button.main{background:#e4572e;color:#fff;box-shadow:none}button:disabled{opacity:.4;cursor:default}input,textarea{border:2px solid #23302b;border-radius:10px;padding:10px;background:#fff}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+html,body{height:100%}body{display:flex;flex-direction:column}.tools{padding:10px 14px;background:#fff}button.on{background:#23302b;color:#fff}.c{width:42px;height:42px;padding:0;border-radius:50%}.c.on{outline:4px solid #e4572e}canvas{flex:1;min-height:0;width:100%;touch-action:none;display:block;cursor:crosshair}
+</style>
+<link rel="stylesheet" href="pastel.css">
+</head>
+<body class="board-page">
+<header><a href="index.html">도구함</a><h1>칠판</h1></header>
+<div class="tools row"><button class="c on" data-c="#ffffff" style="background:#fff" aria-label="흰색"></button><button class="c" data-c="#ffd166" style="background:#ffd166" aria-label="노란색"></button><button class="c" data-c="#ff8fa3" style="background:#ff8fa3" aria-label="분홍색"></button><button class="c" data-c="#8ecae6" style="background:#8ecae6" aria-label="파란색"></button><label>굵기 <input id="w" type="range" min="2" max="30" value="6"></label><button id="er">지우개</button><button id="undo">되돌리기</button><button id="clear">모두 지우기</button></div>
+<canvas id="b"></canvas>
+<script>
+const cv = document.getElementById('b'), x = cv.getContext('2d'), BG = '#7fa99a';
+let strokes = [], cur = null, color = '#ffffff', eraser = false;
+function line(s) {
+  x.strokeStyle = s.c; x.lineWidth = s.w; x.lineCap = x.lineJoin = 'round';
+  x.beginPath();
+  s.p.forEach((q, i) => i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1]));
+  if (s.p.length === 1) x.lineTo(s.p[0][0] + .01, s.p[0][1]);
+  x.stroke();
+}
+function draw() {
+  x.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  x.fillStyle = BG; x.fillRect(0, 0, cv.clientWidth, cv.clientHeight);
+  strokes.forEach(line);
+}
+function size() { cv.width = cv.clientWidth * devicePixelRatio; cv.height = cv.clientHeight * devicePixelRatio; draw(); }
+const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cv.onpointerdown = e => {
+  cv.setPointerCapture(e.pointerId);
+  const w = +document.getElementById('w').value;
+  cur = { c: eraser ? BG : color, w: eraser ? w * 4 : w, p: [pos(e)] };
+  strokes.push(cur); draw();
+};
+cv.onpointermove = e => { if (cur) { cur.p.push(pos(e)); draw(); } };
+cv.onpointerup = cv.onpointercancel = () => cur = null;
+document.querySelectorAll('.c').forEach(b => b.onclick = () => {
+  color = b.dataset.c; eraser = false;
+  document.getElementById('er').classList.remove('on');
+  document.querySelectorAll('.c').forEach(o => o.classList.toggle('on', o === b));
+});
+document.getElementById('er').onclick = e => { eraser = !eraser; e.target.classList.toggle('on', eraser); };
+document.getElementById('undo').onclick = () => { strokes.pop(); draw(); };
+document.getElementById('clear').onclick = () => { strokes = []; draw(); };
+addEventListener('resize', size);
+size();
+</script>
+</body>
+</html>

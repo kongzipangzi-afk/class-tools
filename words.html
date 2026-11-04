@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>영단어 읽어 주기</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:#f6f3ea;color:#23302b}header{display:flex;align-items:center;gap:14px;padding:14px 20px;background:#23302b;color:#fff}header a{color:#fff;text-decoration:none;font-size:15px;border:1px solid #fff8;border-radius:8px;padding:6px 10px}h1{font-size:22px;margin:0}main{max-width:1000px;margin:0 auto;padding:20px}button,input,select,textarea{font:inherit}button{border:0;border-radius:10px;padding:12px 18px;background:#fff;color:#23302b;box-shadow:inset 0 0 0 2px #23302b;cursor:pointer;font-weight:700}button.main{background:#e4572e;color:#fff;box-shadow:none}button:disabled{opacity:.4;cursor:default}input,textarea{border:2px solid #23302b;border-radius:10px;padding:10px;background:#fff}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin:18px 0}.w{background:#fff;text-align:left;padding:18px;display:block;width:100%}.w b{display:block;font-size:30px}.w span{font-size:18px;font-weight:400}.hide .w span{visibility:hidden}.w.now{background:#ffd166}textarea{width:100%;min-height:150px;margin-top:8px}#msg{color:#b3261e;font-weight:700}
+</style>
+<link rel="stylesheet" href="pastel.css">
+</head>
+<body>
+<header><a href="index.html">도구함</a><h1>영단어 읽어 주기</h1></header>
+<main>
+<div class="row"><button class="main" id="all">전체 읽기</button><button id="stop">멈춤</button><button id="hide">뜻 가리기</button><label>빠르기 <input id="rate" type="range" min="0.5" max="1.2" step="0.1" value="0.8"></label></div>
+<p id="msg" role="status"></p>
+<div id="cards"></div>
+<details><summary>단어 바꾸기</summary><p>한 줄에 하나씩, 영어 띄고 뜻을 적어요.</p><textarea id="list"></textarea><p><button id="save">적용하기</button></p></details>
+</main>
+<script>
+const $ = i => document.getElementById(i), KEY = 'class-tools-words';
+const SAMPLE = 'apple 사과\nschool 학교\nfriend 친구\nbook 책\nwater 물\nhappy 행복한\nrun 달리다\nthank you 고맙습니다';
+let items = [], run = 0;
+function load() { try { return localStorage.getItem(KEY) || SAMPLE; } catch (e) { return SAMPLE; } }
+function parse(t) {
+  return t.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.match(/^([\x20-\x7e]+?)\s+([^\x20-\x7e].*)$/);
+    return m ? { en: m[1], ko: m[2] } : { en: l, ko: '' };
+  });
+}
+function render() {
+  $('cards').innerHTML = '';
+  items.forEach((it, i) => {
+    const b = document.createElement('button'); b.className = 'w'; b.id = 'w' + i;
+    const e = document.createElement('b'); e.textContent = it.en;
+    const k = document.createElement('span'); k.textContent = it.ko;
+    b.append(e, k);
+    b.onclick = () => { run++; speechStop(); say(i); };
+    $('cards').append(b);
+  });
+}
+function speechStop() { if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+function clearNow() { document.querySelectorAll('.w').forEach(w => w.classList.remove('now')); }
+function say(i, done) {
+  if (!('speechSynthesis' in window)) { $('msg').textContent = '이 브라우저는 읽어 주기를 지원하지 않아요. Edge나 Chrome으로 열어 주세요.'; return; }
+  const u = new SpeechSynthesisUtterance(items[i].en);
+  u.lang = 'en-US'; u.rate = +$('rate').value;
+  const v = speechSynthesis.getVoices().find(v => /^en/i.test(v.lang));
+  if (v) u.voice = v;
+  clearNow(); $('w' + i).classList.add('now');
+  u.onend = () => { const w = $('w' + i); if (w) w.classList.remove('now'); if (done) done(); };
+  speechSynthesis.speak(u);
+}
+$('all').onclick = () => {
+  speechStop();
+  const me = ++run; let i = 0;
+  (function next() { if (me !== run || i >= items.length) return; say(i++, () => setTimeout(next, 700)); })();
+};
+$('stop').onclick = () => { run++; speechStop(); clearNow(); };
+$('hide').onclick = e => { const h = $('cards').classList.toggle('hide'); e.target.textContent = h ? '뜻 보이기' : '뜻 가리기'; };
+$('save').onclick = () => {
+  run++; speechStop();
+  try { localStorage.setItem(KEY, $('list').value); } catch (e) {}
+  items = parse($('list').value); render();
+};
+$('list').value = load(); items = parse($('list').value); render();
+</script>
+</body>
+</html>
